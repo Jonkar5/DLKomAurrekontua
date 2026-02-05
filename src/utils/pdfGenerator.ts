@@ -153,15 +153,41 @@ export const generatePDF = (budget: Budget, company: CompanyConfig, showPrices: 
     doc.text(dateStr, 25, yPos);
     yPos += 5;
 
-    // --- FLAT TABLE ---
-    const allTableBody: any[] = budget.items.map((item) => [
-        {
-            content: `${item.category.toUpperCase()}: ${item.description}`,
-            styles: { cellPadding: { top: 2, bottom: 2 } }
-        },
-        { content: item.quantity.toString(), styles: { halign: 'center', cellPadding: { top: 2, bottom: 2 } } },
-        { content: showPrices ? `${(item.quantity * item.price).toFixed(2)} €` : '', styles: { halign: 'right', cellPadding: { top: 2, bottom: 2 } } }
-    ]);
+    // --- STACKED FLAT TABLE ---
+    const allTableBody: any[] = [];
+    budget.items.forEach((item) => {
+        // Row 1: Category (Blue, Small, Bold)
+        allTableBody.push([
+            {
+                content: (item.category || 'VARIOS').toUpperCase(),
+                colSpan: 1,
+                styles: {
+                    fontStyle: 'bold',
+                    textColor: [37, 99, 235],
+                    fontSize: 5.5,
+                    cellPadding: { top: 2, bottom: 0 }
+                }
+            },
+            { content: '', styles: { cellPadding: 0 } },
+            { content: '', styles: { cellPadding: 0 } }
+        ]);
+
+        // Row 2: Description, Quantity, Price
+        allTableBody.push([
+            {
+                content: item.description,
+                styles: { cellPadding: { top: 0, bottom: 2 } }
+            },
+            {
+                content: item.quantity.toString(),
+                styles: { halign: 'center', cellPadding: { top: 0, bottom: 2 } }
+            },
+            {
+                content: showPrices ? `${(item.quantity * item.price).toFixed(2)} €` : '',
+                styles: { halign: 'right', cellPadding: { top: 0, bottom: 2 } }
+            }
+        ]);
+    });
 
     autoTable(doc, {
         startY: yPos,
