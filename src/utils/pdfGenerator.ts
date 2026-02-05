@@ -156,15 +156,14 @@ export const generatePDF = (budget: Budget, company: CompanyConfig, showPrices: 
     // --- STACKED FLAT TABLE ---
     const allTableBody: any[] = [];
     budget.items.forEach((item) => {
-        // Row 1: Category (Blue, Small, Bold)
+        // Row 1: Category (Small, Blue, Bold)
         allTableBody.push([
             {
                 content: (item.category || 'VARIOS').toUpperCase(),
-                colSpan: 1,
                 styles: {
                     fontStyle: 'bold',
                     textColor: [37, 99, 235],
-                    fontSize: 5.5,
+                    fontSize: 5,
                     cellPadding: { top: 2, bottom: 0 }
                 }
             },

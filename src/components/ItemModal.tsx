@@ -104,7 +104,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                     onClose();
                 }}>
                     {/* GROUP SECTION */}
-                    <div className={`form-section ${focusedField === 'group' ? 'active' : ''}`} onFocus={() => setFocusedField('group')}>
+                    <div className={`form-section ${m_group ? 'active' : (focusedField === 'group' ? 'active' : '')}`} onFocus={() => setFocusedField('group')}>
                         <label>Grupo de Trabajo</label>
                         <div className="management-row">
                             <select value={m_group} onChange={e => setMGroup(e.target.value)} className="main-select">
@@ -238,15 +238,15 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                 .inline-add-row input:focus { outline: none; border-color: #3b82f6; border-style: solid; background: white; }
                 .inline-add-row.disabled { opacity: 0.5; pointer-events: none; }
                 
-                .inline-plus { background: #22c55e; color: white; border: none; width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; }
-                .inline-plus:hover { transform: scale(1.1); background: #16a34a; }
+                .inline-plus { background: transparent; color: #22c55e; border: 1.5px solid #22c55e; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+                .inline-plus:hover { transform: scale(1.1); background: #22c55e; color: white; }
                 
                 textarea { width: 100%; border: 1.2px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; resize: none; background: #f8fafc; }
                 textarea:focus { outline: none; border-color: #3b82f6; background: white; }
                 
                 .quantity-row { display: flex; gap: 8px; align-items: center; }
-                .quantity-row input { flex: 1.5; padding: 8px 12px; border: 1.5px solid #3b82f6; border-radius: 8px; font-weight: 800; font-size: 1.3rem; text-align: center; color: #1e3a8a; background: #f0f7ff; }
-                .btn-calculator-new { flex: 1; height: 42px; background: #6366f1; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+                .quantity-row input { flex: 2; padding: 8px 12px; border: 1.5px solid #3b82f6; border-radius: 8px; font-weight: 500; font-size: 1.3rem; text-align: center; color: #1e3a8a; background: #f0f7ff; min-width: 80px; }
+                .btn-calculator-new { flex: 1.2; height: 42px; background: #6366f1; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
                 
                 .price-card-new { background: #f8fafc; border-radius: 12px; padding: 12px; margin-top: 8px; border: 1px solid #e2e8f0; }
                 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -269,7 +269,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                 .btn-save { flex: 2; padding: 10px; border-radius: 10px; border: none; background: #2563eb; color: white; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2); }
                 .btn-save:hover { background: #1d4ed8; }
                 
-                .close-btn { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #64748b; cursor: pointer; }
+                .close-btn { background: #f1f5f9; border: none; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #1e293b; cursor: pointer; font-weight: bold; }
             `}</style>
         </div>
     );
