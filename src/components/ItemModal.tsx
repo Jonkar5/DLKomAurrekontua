@@ -3,6 +3,7 @@ import { X, Calculator, Trash2, Plus, ArrowRight } from 'lucide-react';
 import type { BudgetItem } from '../types';
 import { useMasterData } from '../hooks/useMasterData';
 import SurfaceCalculator from './SurfaceCalculator';
+import RichTextEditor from './RichTextEditor';
 
 interface ItemModalProps {
     isOpen: boolean;
@@ -138,7 +139,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                             <select value={m_category} onChange={e => setMCategory(e.target.value)} className="main-select" disabled={!m_group}>
                                 <option value="">Seleccionar Categoría...</option>
                                 {(masterData?.groups?.find(g => g.name === m_group)?.categories || []).map(c => (
-                                    <option key={c} value={c}>{c}</option>
+                                    <option key={c} value={c}>{c.replace(/<[^>]*>?/gm, '')}</option>
                                 ))}
                             </select>
                             {m_category && (
@@ -147,31 +148,37 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                                 </button>
                             )}
                         </div>
-                        <div className={`inline-add-row ${!m_group ? 'disabled' : ''}`}>
-                            <input
-                                type="text"
-                                placeholder="Nueva categoría..."
-                                value={newCatName}
-                                onChange={e => setNewCatName(e.target.value)}
-                                disabled={!m_group}
-                                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddCategory())}
-                            />
-                            <button type="button" className="inline-plus" onClick={handleAddCategory} disabled={!m_group}>
-                                <Plus size={16} />
-                            </button>
+                        <div className={`category-editor-container ${!m_group ? 'disabled' : ''}`}>
+                            <label className="sub-label">Añadir Nueva Categoría con Formato</label>
+                            <div className="editor-with-button">
+                                <RichTextEditor
+                                    value={newCatName}
+                                    onChange={setNewCatName}
+                                    placeholder="Nombre de la nueva categoría (opcional con negrita/color)..."
+                                    minHeight="80px"
+                                />
+                                <button type="button" className="inline-plus-big" onClick={handleAddCategory} disabled={!m_group || !newCatName}>
+                                    <Plus size={20} />
+                                    <span>Añadir</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div className={`form-section ${focusedField === 'description' ? 'active' : ''}`} onFocus={() => setFocusedField('description')}>
-                        <label>Descripción del Trabajo</label>
-                        <textarea value={m_description} onChange={e => setMDescription(e.target.value)} rows={3} placeholder="Escribe aquí los detalles del trabajo..." />
+                        <label>Descripción del Trabajo (Permite Negrita y Tamaño)</label>
+                        <RichTextEditor
+                            value={m_description}
+                            onChange={setMDescription}
+                            placeholder="Escribe aquí los detalles del trabajo..."
+                        />
                     </div>
 
                     <div className="form-row">
                         <div className={`form-section ${focusedField === 'quantity' ? 'active' : ''}`} onFocus={() => setFocusedField('quantity')}>
                             <label>Cantidad / Medida</label>
                             <div className="quantity-row">
-                                <input type="text" value={m_quantity} onChange={e => setMQuantity(e.target.value)} />
+                                <input type="text" inputMode="decimal" value={m_quantity} onChange={e => setMQuantity(e.target.value)} />
                                 <button type="button" onClick={() => setIsCalculatorOpen(true)} className="btn-calculator-new">
                                     <Calculator size={16} /> CALCULADORA
                                 </button>
@@ -183,22 +190,27 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                         <div className="form-row">
                             <div className="form-group-new">
                                 <label>Coste (€)</label>
-                                <input type="text" value={m_costPrice} onChange={e => setMCostPrice(e.target.value)} className="input-cost-new" />
+                                <input type="text" inputMode="decimal" value={m_costPrice} onChange={e => setMCostPrice(e.target.value)} className="input-cost-new" />
                             </div>
                             <div className="form-group-new">
                                 <label>Venta (€)</label>
-                                <input type="text" value={m_price} onChange={e => setMPrice(e.target.value)} className="input-price-new" />
+                                <input type="text" inputMode="decimal" value={m_price} onChange={e => setMPrice(e.target.value)} className="input-price-new" />
                             </div>
                         </div>
 
-                        <div className="profit-bar">
+                        <div className={`profit-bar ${profit >= 0 ? 'bg-green-light' : 'bg-red-light'}`}>
                             <div className="bar-item">
                                 <span>Margen</span>
                                 <strong className={profit >= 0 ? 'text-green' : 'text-red'}>{profit.toFixed(1)}%</strong>
                             </div>
                             <div className="bar-divider"></div>
                             <div className="bar-item">
-                                <span>Total</span>
+                                <span>Beneficio</span>
+                                <strong className={profit >= 0 ? 'text-green' : 'text-red'}>{(n(m_price) - n(m_costPrice)).toFixed(2)} €</strong>
+                            </div>
+                            <div className="bar-divider"></div>
+                            <div className="bar-item">
+                                <span>Total Venta</span>
                                 <strong className="text-blue">{total.toFixed(2)} €</strong>
                             </div>
                         </div>
@@ -238,31 +250,40 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                 .inline-add-row input:focus { outline: none; border-color: #3b82f6; border-style: solid; background: white; }
                 .inline-add-row.disabled { opacity: 0.5; pointer-events: none; }
                 
-                .inline-plus { background: transparent; color: #22c55e; border: 1.5px solid #22c55e; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
-                .inline-plus:hover { transform: scale(1.1); background: #22c55e; color: white; }
+                .category-editor-container { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+                .category-editor-container.disabled { opacity: 0.5; pointer-events: none; }
+                .sub-label { font-size: 0.6rem !important; margin-bottom: 2px !important; }
+                
+                .editor-with-button { display: flex; flex-direction: column; gap: 8px; }
+                
+                .inline-plus-big { background: #22c55e; color: white; border: none; padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s; font-weight: 600; font-size: 0.85rem; }
+                .inline-plus-big:hover { background: #16a34a; transform: translateY(-1px); }
+                .inline-plus-big:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; transform: none; }
                 
                 textarea { width: 100%; border: 1.2px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; resize: none; background: #f8fafc; }
                 textarea:focus { outline: none; border-color: #3b82f6; background: white; }
                 
                 .quantity-row { display: flex; gap: 8px; align-items: center; }
-                .quantity-row input { flex: 2; padding: 8px 12px; border: 1.5px solid #3b82f6; border-radius: 8px; font-weight: 500; font-size: 1.3rem; text-align: center; color: #1e3a8a; background: #f0f7ff; min-width: 80px; }
+                .quantity-row input { flex: 2; padding: 8px 12px; border: 1.5px solid #3b82f6; border-radius: 8px; font-weight: 500; font-size: 0.9rem; text-align: center; color: #1e3a8a; background: #f0f7ff; min-width: 100px; }
                 .btn-calculator-new { flex: 1.2; height: 42px; background: #6366f1; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
                 
                 .price-card-new { background: #f8fafc; border-radius: 12px; padding: 12px; margin-top: 8px; border: 1px solid #e2e8f0; }
                 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
                 .form-group-new { display: flex; flex-direction: column; gap: 2px; }
                 .form-group-new label { font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase; }
-                .form-group-new input { padding: 6px 10px; border: 1.2px solid #e2e8f0; border-radius: 8px; font-weight: 700; font-size: 1rem; }
+                .form-group-new input { padding: 6px 10px; border: 1.2px solid #e2e8f0; border-radius: 8px; font-weight: 700; font-size: 0.9rem; }
                 .input-cost-new { border-left: 3px solid #f59e0b !important; }
                 .input-price-new { border-left: 3px solid #10b981 !important; }
                 
                 .profit-bar { display: flex; align-items: center; justify-content: space-around; margin-top: 10px; background: white; padding: 8px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
                 .bar-item { display: flex; flex-direction: column; align-items: center; }
                 .bar-item span { font-size: 0.6rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; }
-                .bar-item strong { font-size: 1.1rem; }
+                .bar-item strong { font-size: 0.95rem; }
                 .bar-divider { width: 1px; height: 24px; background: #e2e8f0; }
                 
                 .text-green { color: #16a34a; } .text-red { color: #ef4444; } .text-blue { color: #2563eb; }
+                .bg-green-light { background-color: #f0fdf4 !important; border-color: #bbf7d0 !important; }
+                .bg-red-light { background-color: #fef2f2 !important; border-color: #fecaca !important; }
                 
                 .modal-footer-new { display: flex; gap: 10px; margin-top: 16px; }
                 .btn-cancel { flex: 1; padding: 10px; border-radius: 10px; border: 1.2px solid #e2e8f0; background: white; color: #64748b; font-weight: 700; font-size: 0.85rem; cursor: pointer; }

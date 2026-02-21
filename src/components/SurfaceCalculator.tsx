@@ -50,16 +50,16 @@ const SurfaceCalculator: React.FC<SurfaceCalculatorProps> = ({ isOpen, onClose, 
                     <div className="calc-grid">
                         {tab === 'walls' ? (
                             <>
-                                <div><label>Lado 1 (m)</label><input type="text" value={val1} onChange={e => setVal1(e.target.value)} /></div>
-                                <div><label>Lado 2 (m)</label><input type="text" value={val2} onChange={e => setVal2(e.target.value)} /></div>
-                                <div><label>Ancho 1 (m)</label><input type="text" value={val3} onChange={e => setVal3(e.target.value)} /></div>
-                                <div><label>Ancho 2 (m)</label><input type="text" value={val4} onChange={e => setVal4(e.target.value)} /></div>
-                                <div style={{ gridColumn: '1 / -1' }}><label>Altura (m) *Requerido</label><input type="text" value={valH} onChange={e => setValH(e.target.value)} /></div>
+                                <div><label>Lado 1 (m)</label><input type="text" inputMode="decimal" value={val1} onChange={e => setVal1(e.target.value)} /></div>
+                                <div><label>Lado 2 (m)</label><input type="text" inputMode="decimal" value={val2} onChange={e => setVal2(e.target.value)} /></div>
+                                <div><label>Ancho 1 (m)</label><input type="text" inputMode="decimal" value={val3} onChange={e => setVal3(e.target.value)} /></div>
+                                <div><label>Ancho 2 (m)</label><input type="text" inputMode="decimal" value={val4} onChange={e => setVal4(e.target.value)} /></div>
+                                <div style={{ gridColumn: '1 / -1' }}><label>Altura (m) *Requerido</label><input type="text" inputMode="decimal" value={valH} onChange={e => setValH(e.target.value)} /></div>
                             </>
                         ) : (
                             <>
-                                <div><label>Largo (m)</label><input type="text" value={val1} onChange={e => setVal1(e.target.value)} /></div>
-                                <div><label>Ancho (m)</label><input type="text" value={val2} onChange={e => setVal2(e.target.value)} /></div>
+                                <div><label>Largo (m)</label><input type="text" inputMode="decimal" value={val1} onChange={e => setVal1(e.target.value)} /></div>
+                                <div><label>Ancho (m)</label><input type="text" inputMode="decimal" value={val2} onChange={e => setVal2(e.target.value)} /></div>
                             </>
                         )}
                     </div>

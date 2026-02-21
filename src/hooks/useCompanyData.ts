@@ -14,7 +14,16 @@ const INITIAL_CONFIG: CompanyConfig = {
     logoUrl: '',
     sealUrl: '',
     defaultNotes: 'El presupuesto tiene una validez de 30 días.\nForma de pago: 50% al aceptar, 50% al finalizar.',
-    paymentTerms: '50% A la aceptación del presupuesto\n50% A la finalización de los trabajos'
+    paymentTerms: '50% A la aceptación del presupuesto\n50% A la finalización de los trabajos',
+    pdfFontSize: 9,
+    pdfCategoryFontSize: 9,
+    pdfHeaderFontSize: 14,
+    pdfAddressFontSize: 7,
+    pdfClientFontSize: 9,
+    pdfTitleFontSize: 9,
+    pdfTableHeadFontSize: 10,
+    pdfNotesFontSize: 7,
+    pdfLineSpacing: 1.15
 };
 
 export const useCompanyData = () => {

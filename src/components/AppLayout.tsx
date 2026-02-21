@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { FileText, Settings } from 'lucide-react';
+import { FileText, Settings, RefreshCw } from 'lucide-react';
 import { useCompanyData } from '../hooks/useCompanyData';
 
 const AppLayout: React.FC = () => {
@@ -32,6 +32,13 @@ const AppLayout: React.FC = () => {
             <Settings size={20} />
             <span>Configuración</span>
           </Link>
+          <button
+            onClick={() => window.location.reload()}
+            className="refresh-btn"
+            title="Refrescar aplicación"
+          >
+            <RefreshCw size={20} />
+          </button>
         </nav>
       </header>
 
@@ -164,6 +171,31 @@ const AppLayout: React.FC = () => {
           .page-content {
             padding: 16px;
           }
+        }
+
+        .refresh-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 42px;
+          height: 42px;
+          border-radius: 10px;
+          border: none;
+          background: #f1f5f9;
+          color: #64748b;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          margin-left: 8px;
+        }
+
+        .refresh-btn:hover {
+          background: #e2e8f0;
+          color: var(--primary-color);
+          transform: rotate(30deg);
+        }
+
+        .refresh-btn:active {
+          transform: rotate(180deg);
         }
       `}</style>
     </div>

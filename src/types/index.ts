@@ -10,6 +10,15 @@ export interface CompanyConfig {
     sealUrl?: string; // The "sello" for the pdf
     defaultNotes: string;
     paymentTerms: string; // "Porcentajes de la forma de pago"
+    pdfFontSize: number;        // Descriptions
+    pdfCategoryFontSize: number; // Categories
+    pdfHeaderFontSize: number;   // Company Name
+    pdfAddressFontSize: number;  // Address/Contact
+    pdfClientFontSize: number;   // Client Info
+    pdfTitleFontSize: number;    // Budget Info/Title
+    pdfTableHeadFontSize: number; // Table Headers
+    pdfNotesFontSize: number;    // Footer Notes
+    pdfLineSpacing: number;      // Line height multiplier
 }
 
 export interface Client {
@@ -37,6 +46,7 @@ export interface Budget {
     notes: string;
     status: 'draft' | 'pending' | 'accepted' | 'rejected';
     clientSignature?: string; // DataURL
+    visualHtml?: string; // Free-form HTML layout for the WYSIWYG visual editor
 }
 
 export interface BudgetItem {

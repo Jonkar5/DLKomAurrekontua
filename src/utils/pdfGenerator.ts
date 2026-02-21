@@ -1,189 +1,147 @@
-import jsPDF from 'jspdf';
+
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import type { Budget, CompanyConfig } from '../types';
 
 /**
- * Renders HTML-like rich text into the PDF at the specified position.
+ * Generates a pixel-perfect PDF by capturing the visible A4 DOM element (WYSIWYG mode).
+ * The resulting PDF matches exactly what the user sees on screen.
  */
-const renderRichText = (doc: jsPDF, html: string, x: number, y: number, maxWidth: number) => {
-    const fontSizeNormal = 7.5;
-    const fontSizeLarge = 10;
-    const fontSizeSmall = 6.5;
-
-    doc.setFontSize(fontSizeNormal);
-    doc.setFont("helvetica", "normal");
-
-    let text = html
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/div>/gi, '\n')
-        .replace(/<div>/gi, '')
-        .replace(/&nbsp;/gi, ' ');
-
-    const segments = text.split(/(<[^>]+>)/g);
-    let currentX = x;
-    let currentY = y;
-    const lineHeight = 4;
-
-    segments.forEach(segment => {
-        if (segment === '<b>') {
-            doc.setFont("helvetica", "bold");
-        } else if (segment === '</b>') {
-            doc.setFont("helvetica", "normal");
-        } else if (segment === '<i>') {
-            doc.setFont("helvetica", "italic");
-        } else if (segment === '</i>') {
-            doc.setFont("helvetica", "normal");
-        } else if (segment.includes('<font size="5">')) {
-            doc.setFontSize(fontSizeLarge);
-        } else if (segment.includes('<font size="2">')) {
-            doc.setFontSize(fontSizeSmall);
-        } else if (segment.includes('</font>')) {
-            doc.setFontSize(fontSizeNormal);
-        } else if (segment.startsWith('<')) {
-            // Ignore other tags
-        } else if (segment) {
-            const lines = segment.split('\n');
-            lines.forEach((line, i) => {
-                if (i > 0) {
-                    currentY += lineHeight;
-                    currentX = x;
-                }
-
-                if (line) {
-                    const words = line.split(' ');
-                    words.forEach(word => {
-                        const wordWidth = doc.getTextWidth(word + ' ');
-                        if (currentX + wordWidth > x + maxWidth) {
-                            currentY += lineHeight;
-                            currentX = x;
-                        }
-                        doc.text(word + ' ', currentX, currentY);
-                        currentX += wordWidth;
-                    });
-                }
-            });
-        }
+export const generatePDFFromElement = async (
+    element: HTMLElement,
+    filename: string
+): Promise<void> => {
+    // Scale x2 for high-DPI / retina quality
+    const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
     });
 
-    return currentY + lineHeight;
+    const imgData = canvas.toDataURL('image/jpeg', 0.97);
+    const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();   // 210 mm
+    const pageHeight = doc.internal.pageSize.getHeight(); // 297 mm
+
+    // Fit image to full A4 page
+    doc.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
+    doc.save(filename);
 };
 
-const renderHeader = (doc: jsPDF, budget: Budget, company: CompanyConfig) => {
+const renderHeader = (doc: jsPDF, company: CompanyConfig) => {
     const pageWidth = doc.internal.pageSize.getWidth();
-    const yPos = 12;
+    let yPos = 15;
 
+    // Logo (if exists) - FIXED: Proportional scaling to avoid any deformation
     if (company.logoUrl) {
         try {
-            doc.addImage(company.logoUrl, 'PNG', 15, yPos, 18, 0);
-        } catch (e) { }
+            const props = doc.getImageProperties(company.logoUrl);
+            const ratio = props.width / props.height;
+            const targetWidth = 25;
+            const targetHeight = targetWidth / ratio;
+            doc.addImage(company.logoUrl, 'PNG', 15, yPos, targetWidth, targetHeight);
+        } catch (e) {
+            // Fallback to 25x25 if property check fails
+            doc.addImage(company.logoUrl, 'PNG', 15, yPos, 25, 25);
+        }
     }
 
-    // Harmonious Right Header
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(50, 50, 50);
-    doc.text("PROYECTO", pageWidth - 15, yPos + 4, { align: "right" });
+    // Company Info (Top Right)
+    doc.setFontSize(company.pdfHeaderFontSize || 14);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company.name.toUpperCase(), pageWidth - 15, yPos + 5, { align: 'right' });
 
-    doc.setFontSize(7.5);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(120, 120, 120);
-    doc.text(`${budget.number || '---'}`, pageWidth - 15, yPos + 9, { align: "right" });
+    doc.setFontSize(company.pdfAddressFontSize || 7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(company.address, pageWidth - 15, yPos + 10, { align: 'right' });
+    doc.text(`T: ${company.phone} | CIF: ${company.cif}`, pageWidth - 15, yPos + 14, { align: 'right' });
+    doc.text(company.email, pageWidth - 15, yPos + 18, { align: 'right' });
 
-    doc.setDrawColor(240, 240, 240);
-    doc.setLineWidth(0.1);
-    doc.line(15, yPos + 16, pageWidth - 15, yPos + 16);
+    // Header Line
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.2);
+    doc.line(15, yPos + 23, pageWidth - 15, yPos + 23);
 
-    return yPos + 22;
+    return yPos + 28;
 };
 
-export const generatePDF = (budget: Budget, company: CompanyConfig, showPrices: boolean = true) => {
+export const generatePDF = (budget: Budget, company: CompanyConfig, showPrices: boolean = true, showTotals: boolean = true) => {
     const doc = new jsPDF();
+    const lineSpacing = company.pdfLineSpacing || 1.15;
+    doc.setLineHeightFactor(lineSpacing);
     const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = renderHeader(doc, company);
 
-    let yPos = renderHeader(doc, budget, company);
+    // Document Info (Budget Number & Date)
+    doc.setFontSize(company.pdfTitleFontSize || 9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(37, 99, 235);
+    doc.text(`PRESUPUESTO: ${budget.number}`, 15, yPos + 5);
 
-    // --- INFO ---
-    const iCol1 = 15;
-    const iCol2 = pageWidth / 2 + 5;
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(200, 200, 200);
-    doc.text("EMISOR", iCol1, yPos);
-    doc.text("CLIENTE", iCol2, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    const date = new Date(budget.date).toLocaleDateString('es-ES', {
+        day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+    doc.text(`FECHA: ${date}`, 15, yPos + 10);
 
-    yPos += 4;
-    doc.setFontSize(7.5);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(80, 80, 80);
+    // Client Info (Aligned Right)
+    doc.setFontSize(company.pdfClientFontSize || 9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('CLIENTE:', pageWidth - 15, yPos + 5, { align: 'right' });
 
-    let cY = yPos;
-    doc.setFont("helvetica", "bold");
-    doc.text(company.name, iCol1, cY);
-    doc.setFont("helvetica", "normal");
-    cY += 3.5;
-    doc.text(company.address, iCol1, cY);
-    cY += 3.5;
-    doc.text(`CIF: ${company.cif} | Tel: ${company.phone}`, iCol1, cY);
-    cY += 3.5;
-    doc.text(company.email, iCol1, cY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(budget.clientData.name.toUpperCase(), pageWidth - 15, yPos + 10, { align: 'right' });
+    doc.setFontSize(company.pdfAddressFontSize || 7);
+    doc.text(budget.clientData.address, pageWidth - 15, yPos + 14, { align: 'right' });
+    doc.text(`NIF: ${budget.clientData.nif}`, pageWidth - 15, yPos + 18, { align: 'right' });
 
-    let lY = yPos;
-    doc.setFont("helvetica", "bold");
-    doc.text(budget.clientData.name || '---', iCol2, lY);
-    doc.setFont("helvetica", "normal");
-    lY += 3.5;
-    const clAddr = budget.clientData.address || '';
-    const clCity = `${budget.clientData.postalCode || ''} ${budget.clientData.city || ''}`.trim();
-    doc.text(`${clAddr}${clCity ? `, ${clCity}` : ''}`, iCol2, lY);
-    lY += 3.5;
-    doc.text(`NIF: ${budget.clientData.nif || '---'} | Tel: ${budget.clientData.phone || '---'}`, iCol2, lY);
-    lY += 3.5;
-    doc.text(budget.clientData.email || '---', iCol2, lY);
+    yPos += 28;
 
-    yPos = Math.max(cY, lY) + 15;
-
-    // --- DATE ABOVE TABLE ---
-    doc.setFontSize(6.5);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(180, 180, 180);
-    doc.text("FECHA:", 15, yPos);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    const dateStr = new Date(budget.date).toLocaleDateString();
-    doc.text(dateStr, 25, yPos);
-    yPos += 5;
-
-    // --- STACKED FLAT TABLE ---
     const allTableBody: any[] = [];
-    budget.items.forEach((item) => {
-        // Row 1: Category (Small, Blue, Bold)
+
+    budget.items.forEach((item, index) => {
+        // Row 1: Category (Header)
+        // Add a larger top padding for categories that are not the first one to create "job separation"
+        const categoryTopPadding = index === 0 ? 2 : 10;
+
         allTableBody.push([
             {
-                content: (item.category || 'VARIOS').toUpperCase(),
+                content: stripHtmlAndStyle(item.category).toUpperCase(),
+                colSpan: 3,
                 styles: {
-                    fontStyle: 'bold',
+                    fontStyle: 'normal',
                     textColor: [37, 99, 235],
-                    fontSize: 5,
-                    cellPadding: { top: 2, bottom: 0 }
+                    fontSize: company.pdfCategoryFontSize || 9,
+                    cellPadding: { top: categoryTopPadding, bottom: 0, left: 2, right: 2 }
                 }
-            },
-            { content: '', styles: { cellPadding: 0 } },
-            { content: '', styles: { cellPadding: 0 } }
+            }
         ]);
 
         // Row 2: Description, Quantity, Price
         allTableBody.push([
             {
-                content: item.description,
-                styles: { cellPadding: { top: 0, bottom: 2 } }
+                content: stripHtmlAndStyle(item.description),
+                styles: { halign: 'left', cellPadding: { top: 0, bottom: 2, left: 2, right: 2 } }
             },
             {
                 content: item.quantity.toString(),
                 styles: { halign: 'center', cellPadding: { top: 0, bottom: 2 } }
             },
             {
-                content: showPrices ? `${(item.quantity * item.price).toFixed(2)} €` : '',
-                styles: { halign: 'right', cellPadding: { top: 0, bottom: 2 } }
+                content: showPrices ? `${item.amount.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €` : '',
+                styles: { halign: 'right', cellPadding: { top: 0, bottom: 2, left: 2, right: 2 } }
             }
         ]);
     });
@@ -191,129 +149,146 @@ export const generatePDF = (budget: Budget, company: CompanyConfig, showPrices: 
     autoTable(doc, {
         startY: yPos,
         head: [[
-            { content: 'CONCEPTO', styles: { halign: 'center' } },
-            { content: 'CANTIDAD', styles: { halign: 'center' } },
+            { content: 'CONCEPTO', styles: { halign: 'left' } },
+            { content: 'CANT.', styles: { halign: 'center' } },
             { content: 'IMPORTE', styles: { halign: 'right' } }
         ]],
         body: allTableBody,
         theme: 'plain',
+        margin: { left: 15, right: 15, top: 46 },
         headStyles: {
             fillColor: [255, 255, 255],
             textColor: [37, 99, 235],
-            fontSize: 8,
+            fontSize: company.pdfTableHeadFontSize || 10,
             fontStyle: 'bold',
-            cellPadding: 2,
+            cellPadding: { top: 3, bottom: 2, left: 2, right: 2 },
             lineWidth: { bottom: 0.1 },
             lineColor: [37, 99, 235]
         },
         styles: {
-            fontSize: 7,
+            fontSize: company.pdfFontSize || 9,
             textColor: [80, 80, 80],
-            overflow: 'linebreak'
+            overflow: 'linebreak',
+            cellPadding: { top: 0.2, bottom: 0.5, left: 2, right: 2 }
         },
         columnStyles: {
             0: { cellWidth: 'auto' },
             1: { cellWidth: 20 },
-            2: { cellWidth: 25 }
+            2: { cellWidth: 30 }
         },
-        margin: { left: 15, right: 15 },
         didDrawPage: (data) => {
             if (data.pageNumber > 1) {
-                renderHeader(doc, budget, company);
+                renderHeader(doc, company);
+            }
+        },
+        didParseCell: (data) => {
+            if (data.row.index % 2 === 0) {
+                (data.cell.styles as any).pageBreak = 'avoid';
             }
         }
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 45; // INCREASED SPACING BEFORE TOTALS
+    yPos = (doc as any).lastAutoTable.finalY + 15;
 
-    // --- CLOSURE ---
-    const closureH = 70;
-    if (yPos + closureH > 275) {
-        doc.addPage();
-        renderHeader(doc, budget, company);
-        yPos = 35;
-    }
+    // --- TOTALS SECTION ---
+    if (showTotals) {
+        const totalsW = 60;
+        const totalsX = pageWidth - 15 - totalsW;
 
-    const tX1 = pageWidth - 80;
-    const tX2 = pageWidth - 15;
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text("Base Imponible:", tX1, yPos);
-    doc.text(`${budget.subtotal.toFixed(2)} €`, tX2, yPos, { align: "right" });
-    yPos += 4.5;
-    doc.text(`IVA (${(budget.ivaRate * 100).toFixed(0)}%):`, tX1, yPos);
-    doc.text(`${budget.ivaAmount.toFixed(2)} €`, tX2, yPos, { align: "right" });
-    yPos += 7;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(37, 99, 235);
-    doc.text("TOTAL PROYECTO:", tX1, yPos);
-    doc.text(`${budget.total.toFixed(2)} €`, tX2, yPos, { align: "right" });
-
-    yPos += 12;
-
-    if (company.paymentTerms) {
-        doc.setFontSize(7);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(120, 120, 120);
-        doc.text("FORMA DE PAGO", 15, yPos);
-        yPos += 4.5;
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(150, 150, 150);
-
-        const amountColX = 75; // ULTRA CLOSE
-
-        const pLines = company.paymentTerms.split('\n');
-        pLines.forEach(line => {
-            if (!line.trim()) return;
-            const pctMatch = line.match(/(\d+(?:[.,]\d+)?)\s*%/);
-            if (pctMatch) {
-                const pct = parseFloat(pctMatch[1].replace(',', '.'));
-                const amount = (budget.total * pct) / 100;
-                doc.text(line, 15, yPos);
-                doc.setFont("helvetica", "bold");
-                doc.text(`${amount.toFixed(2)} €`, amountColX, yPos, { align: "right" });
-                doc.setFont("helvetica", "normal");
+        const drawTotalLine = (label: string, value: string, currentY: number, isBold = false, isHighlighted = false) => {
+            if (isBold) {
+                doc.setFont('helvetica', 'bold');
+                if (isHighlighted) {
+                    doc.setTextColor(37, 99, 235); // BLUE
+                } else {
+                    doc.setTextColor(30, 41, 59);
+                }
             } else {
-                doc.text(line, 15, yPos);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 116, 139);
             }
-            yPos += 3.5;
-        });
-        yPos += 8;
+            doc.text(label, totalsX, currentY);
+            doc.text(value, pageWidth - 15, currentY, { align: 'right' });
+            return currentY + 6;
+        };
+
+        if (yPos + 55 > 280) {
+            doc.addPage();
+            yPos = renderHeader(doc, company) + 10;
+        }
+
+        yPos = drawTotalLine('SUMA IMPORTES', `${budget.subtotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €`, yPos);
+        yPos = drawTotalLine(`I.V.A. (${(budget.ivaRate * 100).toFixed(0)}%)`, `${budget.ivaAmount.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €`, yPos);
+        yPos += 2;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(totalsX, yPos - 1, pageWidth - 15, yPos - 1);
+        drawTotalLine('TOTAL PRESUPUESTO', `${budget.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €`, yPos + 4, true, true);
     }
 
-    const sY = yPos + 5;
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(220, 220, 220);
-    doc.text("CONFORME EMPRESA", 45, sY, { align: "center" });
-    doc.text("CONFORME CLIENTE", pageWidth - 45, sY, { align: "center" });
-
-    if (company.sealUrl) {
-        try { doc.addImage(company.sealUrl, 'PNG', 25, sY + 2, 35, 0); } catch (e) { }
-    }
-    const cSig = budget.clientSignature;
-    if (cSig && cSig.startsWith('data:image')) {
-        try { doc.addImage(cSig, 'PNG', pageWidth - 65, sY + 2, 45, 0); } catch (e) { }
-    }
-
-    doc.setDrawColor(245, 245, 245);
-    doc.line(20, sY + 30, 70, sY + 30);
-    doc.line(pageWidth - 70, sY + 30, pageWidth - 20, sY + 30);
-
-    // --- NOTES (LAST PAGE) ---
-    if (budget.notes || company.defaultNotes) {
+    // --- CLOSURE & NOTES ---
+    yPos += 20;
+    if (yPos + 50 > 280) {
         doc.addPage();
-        renderHeader(doc, budget, company);
-        yPos = 55; // REDUCED TOP MARGIN AS REQUESTED
-        doc.setFontSize(8.5);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(150, 150, 150);
-        doc.text("NOTAS Y CONDICIONES", 15, yPos);
-        yPos += 12;
-        const nText = budget.notes || company.defaultNotes;
-        renderRichText(doc, nText, 15, yPos, pageWidth - 30);
+        yPos = renderHeader(doc, company) + 10;
     }
 
-    doc.save(`Proyecto_${budget.number || 'borrador'}.pdf`);
+    if (budget.notes) {
+        doc.setFontSize(company.pdfNotesFontSize || 8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(37, 99, 235);
+        doc.text('NOTAS Y CONDICIONES:', 15, yPos);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(80, 80, 80);
+        const splitNotes = stripHtmlAndStyle(budget.notes);
+        const splitLines = doc.splitTextToSize(splitNotes, pageWidth - 30);
+        doc.setFontSize(company.pdfNotesFontSize || 7);
+        doc.text(splitLines, 15, yPos + 5);
+        yPos += (splitLines.length * 4) + 10;
+    }
+
+    // --- SIGNATURES ---
+    const closureH = 65;
+    if (yPos + closureH > 280) {
+        doc.addPage();
+        yPos = renderHeader(doc, company) + 10;
+    }
+
+    doc.setFontSize(7);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+
+    doc.text('ACEPTACIÓN DEL PRESUPUESTO', 15, yPos + 10);
+
+    const companyX = pageWidth - 65;
+    const companyName = company.name ? company.name.toUpperCase() : 'DLKOM';
+    doc.text(`FIRMADO: ${companyName}`, companyX, yPos + 10);
+
+    // SEAL - FIXED: Proportional scaling and smaller size
+    if (company.sealUrl) {
+        try {
+            const props = doc.getImageProperties(company.sealUrl);
+            const ratio = props.width / props.height;
+            const targetWidth = 40; // Slightly larger seal (40mm wide)
+            const targetHeight = targetWidth / ratio;
+            doc.addImage(company.sealUrl, 'PNG', companyX, yPos + 15, targetWidth, targetHeight, undefined, 'SLOW');
+        } catch (e) {
+            // Fallback to previous safe dimensions
+            doc.addImage(company.sealUrl, 'PNG', companyX, yPos + 15, 40, 24);
+        }
+    }
+
+    // Client Signature Line
+    doc.setDrawColor(200, 200, 200);
+    doc.line(15, yPos + 35, 75, yPos + 35);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Firma Cliente', 15, yPos + 39);
+
+    const filename = `Presupuesto_${budget.number}_${budget.clientData.name.replace(/\s+/g, '_')}.pdf`;
+    doc.save(filename);
+};
+
+const stripHtmlAndStyle = (html: string) => {
+    if (!html) return '';
+    return html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ');
 };

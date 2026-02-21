@@ -110,6 +110,13 @@ export const useBudget = (initialBudget?: Budget) => {
         });
     };
 
+    const saveItem = (id: string, itemData: BudgetItem) => {
+        setBudget(prev => ({
+            ...prev,
+            items: prev.items.map(item => item.id === id ? { ...itemData, amount: itemData.quantity * itemData.price } : item)
+        }));
+    };
+
     const removeItem = (id: string) => {
         setBudget(prev => ({
             ...prev,
@@ -127,6 +134,7 @@ export const useBudget = (initialBudget?: Budget) => {
         updateClientData,
         addItem,
         updateItem,
+        saveItem,
         removeItem,
         updateBudgetField
     };
