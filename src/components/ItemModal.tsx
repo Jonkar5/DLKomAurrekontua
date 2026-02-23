@@ -62,6 +62,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
     const profit = (() => {
         const c = n(m_costPrice);
         const p = n(m_price);
+        if (c === 0 && p > 0) return 100;
         return c > 0 ? ((p - c) / c) * 100 : 0;
     })();
 
@@ -148,20 +149,18 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                                 </button>
                             )}
                         </div>
-                        <div className={`category-editor-container ${!m_group ? 'disabled' : ''}`}>
-                            <label className="sub-label">Añadir Nueva Categoría con Formato</label>
-                            <div className="editor-with-button">
-                                <RichTextEditor
-                                    value={newCatName}
-                                    onChange={setNewCatName}
-                                    placeholder="Nombre de la nueva categoría (opcional con negrita/color)..."
-                                    minHeight="80px"
-                                />
-                                <button type="button" className="inline-plus-big" onClick={handleAddCategory} disabled={!m_group || !newCatName}>
-                                    <Plus size={20} />
-                                    <span>Añadir</span>
-                                </button>
-                            </div>
+                        <div className={`inline-add-row ${!m_group ? 'disabled' : ''}`}>
+                            <input
+                                type="text"
+                                placeholder="Añadir nueva categoría..."
+                                value={newCatName}
+                                onChange={e => setNewCatName(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddCategory())}
+                                disabled={!m_group}
+                            />
+                            <button type="button" className="inline-plus" onClick={handleAddCategory} disabled={!m_group || !newCatName}>
+                                <Plus size={16} />
+                            </button>
                         </div>
                     </div>
 
@@ -249,6 +248,22 @@ const ItemModal: React.FC<ItemModalProps> = ({ isOpen, onClose, onSave, initialI
                 .inline-add-row input { flex: 1; padding: 4px 10px; border: 1px dashed #cbd5e1; border-radius: 6px; font-size: 0.8rem; background: transparent; }
                 .inline-add-row input:focus { outline: none; border-color: #3b82f6; border-style: solid; background: white; }
                 .inline-add-row.disabled { opacity: 0.5; pointer-events: none; }
+                
+                .inline-plus { 
+                    background: #2563eb; 
+                    color: white; 
+                    border: none; 
+                    width: 32px; 
+                    height: 32px; 
+                    border-radius: 8px; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    cursor: pointer; 
+                    transition: all 0.2s; 
+                }
+                .inline-plus:hover { background: #1d4ed8; transform: translateY(-1px); }
+                .inline-plus:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; transform: none; }
                 
                 .category-editor-container { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
                 .category-editor-container.disabled { opacity: 0.5; pointer-events: none; }

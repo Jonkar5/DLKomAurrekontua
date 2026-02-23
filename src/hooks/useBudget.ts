@@ -15,6 +15,7 @@ const EMPTY_CLIENT: Client = {
 const EMPTY_BUDGET: Budget = {
     id: '',
     number: '',
+    projectName: '',
     clientId: '',
     clientData: EMPTY_CLIENT,
     date: Date.now(),

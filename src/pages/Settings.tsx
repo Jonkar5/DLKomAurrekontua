@@ -371,9 +371,9 @@ const Settings: React.FC = () => {
       .full-width { grid-column: 1 / -1; }
       
       .uploader-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
       }
 
       .action-grid {
@@ -481,7 +481,7 @@ const Settings: React.FC = () => {
       .upload-area {
         border: 2px dashed #e2e8f0;
         border-radius: 12px;
-        height: 120px;
+        height: 180px;
         display: flex;
         align-items: center;
         justify-content: center;

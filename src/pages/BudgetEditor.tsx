@@ -1,15 +1,14 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBudget } from '../hooks/useBudget';
-import { Plus, Trash2, Edit2, Save, FileDown, Upload as UploadIcon, Download, FileText, ArrowLeft, EyeOff, Tags, Calculator, Ban } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, FileDown, Share2, Download, FileText, EyeOff, Tags, Calculator, Ban, ChevronLeft } from 'lucide-react';
 import ItemModal from '../components/ItemModal';
 import SignaturePad from '../components/SignaturePad';
 import RichTextEditor from '../components/RichTextEditor';
-import FloatingToolbar from '../components/FloatingToolbar';
 import { DEFAULT_IVA_RATES } from '../constants';
 import type { BudgetItem, Budget } from '../types';
-import { generatePDF, generatePDFFromElement } from '../utils/pdfGenerator';
+import { generatePDF } from '../utils/pdfGenerator';
 import { useCompanyData } from '../hooks/useCompanyData';
 import { budgetService } from '../services/budgetService';
 import * as XLSX from 'xlsx';
@@ -28,10 +27,22 @@ const BudgetEditor: React.FC = () => {
     const [editingItem, setEditingItem] = useState<BudgetItem | undefined>(undefined);
     const [showPrices, setShowPrices] = useState(true);
     const [showTotals, setShowTotals] = useState(true);
-    const [isVisualMode, setIsVisualMode] = useState(true);
-    const [isExportingPDF, setIsExportingPDF] = useState(false);
+    const isNew = !id; // Determine if it's a new budget
+
+    // Auto-generate budget number if empty and it's a new budget
+    useEffect(() => {
+        if (isNew && !budget.number) {
+            const year = new Date().getFullYear();
+            const random = Math.floor(1000 + Math.random() * 9000);
+            updateBudgetField('number', `${year}-${random}`);
+        }
+    }, [isNew, budget.number, updateBudgetField]);
+
+    const handleBack = () => {
+        navigate('/budgets');
+    };
+
     const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const a4SheetRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (id) {
@@ -76,91 +87,7 @@ const BudgetEditor: React.FC = () => {
         navigate('/budgets');
     };
 
-    // Builds the full HTML layout from current budget + company data
-    const buildInitialHtml = () => {
-        const logoHtml = companyData.logoUrl
-            ? `<img src="${companyData.logoUrl}" alt="Logo" style="width:100px;height:100px;object-fit:contain;border-radius:8px;" />`
-            : `<div style="width:100px;height:100px;background:#e2e8f0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#64748b;font-size:1rem;">LOGO</div>`;
 
-        const itemsHtml = budget.items.map(item => `
-            <tr style="border-bottom:1px solid #f1f5f9;">
-                <td colspan="3" style="background:#f1f5f9;padding:6px 14px;font-weight:800;font-size:0.8rem;color:#2563eb;text-transform:uppercase;border:none;">${item.category}</td>
-            </tr>
-            <tr>
-                <td style="padding:6px 14px 10px;font-size:0.9rem;color:#1e293b;line-height:1.5;border:none;">${item.description}</td>
-                <td style="padding:6px 14px 10px;text-align:center;font-weight:600;font-size:0.85rem;border:none;">${item.quantity}</td>
-                <td style="padding:6px 14px 10px;text-align:right;font-weight:700;color:#0f172a;border:none;">${(item.quantity * item.price).toFixed(2)} €</td>
-            </tr>`).join('');
-
-        const sealHtml = companyData.sealUrl
-            ? `<img src="${companyData.sealUrl}" alt="Sello" style="max-height:70px;opacity:0.85;display:block;margin:8px auto 0;" />`
-            : '';
-
-        return `
-<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
-  <tr>
-    <td style="width:110px;vertical-align:top;border:none;">${logoHtml}</td>
-    <td style="text-align:right;vertical-align:top;border:none;">
-      <div style="font-size:1.2rem;font-weight:800;color:#0f172a;margin-bottom:2px;">${companyData.name || 'NOMBRE EMPRESA'}</div>
-      <div style="font-size:0.8rem;color:#64748b;line-height:1.3;">${companyData.address || ''}</div>
-      <div style="font-size:0.8rem;color:#64748b;">${companyData.phone} | ${companyData.email}</div>
-      <div style="font-size:0.8rem;color:#64748b;">CIF/NIF: ${companyData.cif}</div>
-    </td>
-  </tr>
-</table>
-<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0;" />
-<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-  <tr>
-    <td style="vertical-align:top;border:none;">
-      <div style="font-size:1rem;font-weight:800;color:#2563eb;">PRESUPUESTO: ${budget.number}</div>
-      <div style="font-size:0.85rem;color:#64748b;">FECHA: ${new Date(budget.date).toLocaleDateString()}</div>
-    </td>
-    <td style="background:#f8fafc;padding:12px 16px;border-radius:8px;border-left:3px solid #2563eb;vertical-align:top;border-top:none;border-bottom:none;border-right:none;">
-      <div style="font-size:0.7rem;font-weight:800;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">CLIENTE</div>
-      <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-bottom:4px;">${budget.clientData.name || 'NOMBRE DEL CLIENTE'}</div>
-      <div style="font-size:0.85rem;color:#475569;">${budget.clientData.address || ''}</div>
-      <div style="font-size:0.85rem;color:#475569;">NIF: ${budget.clientData.nif || '—'}</div>
-    </td>
-  </tr>
-</table>
-<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-  <thead>
-    <tr style="background:#1e293b;color:white;">
-      <th style="padding:10px 14px;font-size:0.75rem;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border:none;">CONCEPTO</th>
-      <th style="padding:10px 14px;font-size:0.75rem;text-align:center;font-weight:700;text-transform:uppercase;width:70px;border:none;">CANT.</th>
-      <th style="padding:10px 14px;font-size:0.75rem;text-align:right;font-weight:700;text-transform:uppercase;width:110px;border:none;">IMPORTE</th>
-    </tr>
-  </thead>
-  <tbody>${itemsHtml}</tbody>
-</table>
-<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-  <tr>
-    <td style="background:#fffbeb;border:1px solid #fef3c7;padding:12px;border-radius:8px;vertical-align:top;">
-      <div style="font-size:0.7rem;font-weight:800;color:#92400e;margin-bottom:6px;">NOTAS Y CONDICIONES:</div>
-      <div style="font-size:0.8rem;color:#78350f;line-height:1.4;">${budget.notes || companyData.defaultNotes || 'Escribe aquí las condiciones del presupuesto...'}</div>
-    </td>
-    <td style="width:230px;vertical-align:top;padding-left:20px;border:none;">
-      <table style="width:100%;border-collapse:collapse;">
-        <tr><td style="font-size:0.85rem;padding:4px 0;border:none;">Base Imponible:</td><td style="text-align:right;font-size:0.85rem;padding:4px 0;border:none;">${budget.subtotal.toFixed(2)} €</td></tr>
-        <tr><td style="font-size:0.85rem;padding:4px 0;border:none;">IVA (${(budget.ivaRate * 100).toFixed(0)}%):</td><td style="text-align:right;font-size:0.85rem;padding:4px 0;border:none;">${budget.ivaAmount.toFixed(2)} €</td></tr>
-        <tr style="border-top:2px solid #e2e8f0;"><td style="font-size:1.1rem;font-weight:900;color:#2563eb;padding:8px 0 4px;border:none;">TOTAL:</td><td style="text-align:right;font-size:1.1rem;font-weight:900;color:#2563eb;padding:8px 0 4px;border:none;">${budget.total.toFixed(2)} €</td></tr>
-      </table>
-    </td>
-  </tr>
-</table>
-<table style="width:100%;border-collapse:collapse;margin-top:40px;">
-  <tr>
-    <td style="width:50%;text-align:center;vertical-align:bottom;border:none;">
-      <hr style="border:none;border-top:1px solid #cbd5e1;margin-bottom:6px;" />
-      <div style="font-size:0.7rem;font-weight:600;color:#64748b;text-transform:uppercase;">Firma Cliente</div>
-    </td>
-    <td style="width:50%;text-align:center;vertical-align:bottom;border:none;">
-      <div style="font-size:0.7rem;font-weight:600;color:#64748b;text-transform:uppercase;margin-bottom:6px;">${companyData.name || 'DLKOM'}</div>
-      ${sealHtml}
-    </td>
-  </tr>
-</table>`;
-    };
 
     const handleExportExcel = () => {
         const wb = XLSX.utils.book_new();
@@ -199,7 +126,109 @@ const BudgetEditor: React.FC = () => {
 
         const ws = XLSX.utils.aoa_to_sheet(data);
         XLSX.utils.book_append_sheet(wb, ws, "Proyecto");
-        XLSX.writeFile(wb, `Proyecto_${budget.number || 'borrador'}.xlsx`);
+        const exportName = budget.projectName ? `${budget.projectName}_${budget.number}` : `Proyecto_${budget.number || 'borrador'}`;
+        XLSX.writeFile(wb, `${exportName}.xlsx`);
+    };
+
+    const handleExportWord = async () => {
+        const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, WidthType, BorderStyle, ImageRun } = await import('docx');
+
+        const noBorder = {
+            top: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+            bottom: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+            left: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+            right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
+        };
+
+        const itemRows = budget.items.map(item => new TableRow({
+            children: [
+                new TableCell({
+                    borders: noBorder,
+                    children: [
+                        new Paragraph({ children: [new TextRun({ text: item.category.toUpperCase(), bold: true, color: '1e40af', size: 18 })] }),
+                        new Paragraph({ children: [new TextRun({ text: item.description.replace(/<[^>]*>/g, ''), size: 18 })] }),
+                    ],
+                    width: { size: 60, type: WidthType.PERCENTAGE },
+                }),
+                new TableCell({
+                    borders: noBorder,
+                    children: [new Paragraph({ text: item.quantity.toString(), alignment: AlignmentType.CENTER })],
+                    width: { size: 10, type: WidthType.PERCENTAGE },
+                }),
+                new TableCell({
+                    borders: noBorder,
+                    children: [new Paragraph({ text: `${item.price.toFixed(2)} €`, alignment: AlignmentType.RIGHT })],
+                    width: { size: 15, type: WidthType.PERCENTAGE },
+                }),
+                new TableCell({
+                    borders: noBorder,
+                    children: [new Paragraph({ text: `${(item.quantity * item.price).toFixed(2)} €`, alignment: AlignmentType.RIGHT })],
+                    width: { size: 15, type: WidthType.PERCENTAGE },
+                }),
+            ],
+        }));
+
+        const headerRow = new TableRow({
+            tableHeader: true,
+            children: ['DESCRIPCIÓN', 'CANT.', 'PRECIO', 'IMPORTE'].map(h => new TableCell({
+                borders: noBorder,
+                children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18 })] })],
+                shading: { fill: 'EFF6FF' },
+            })),
+        });
+
+        const headerChildren: any[] = [];
+
+        if (companyData.logoUrl) {
+            try {
+                const response = await fetch(companyData.logoUrl);
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                headerChildren.push(new ImageRun({
+                    data: arrayBuffer,
+                    transformation: { width: 150, height: 75 },
+                    type: 'png'
+                }));
+            } catch (e) {
+                console.warn('Could not load logo for Word export', e);
+            }
+        }
+
+        headerChildren.push(new TextRun({ text: `  ${companyData.name || 'Mi Empresa'}`, size: 28, bold: true, color: '1e40af' }));
+        const exportNotes = budget.notes || companyData.defaultNotes || '';
+
+        const doc = new Document({
+            sections: [{
+                children: [
+                    new Paragraph({ children: headerChildren }),
+                    new Paragraph({ text: '' }),
+                    new Paragraph({ children: [new TextRun({ text: `Presupuesto Nº: ${budget.number}   |   Fecha: ${new Date(budget.date).toLocaleDateString('es-ES')}`, size: 20 })] }),
+                    new Paragraph({ children: [new TextRun({ text: `Cliente: ${budget.clientData.name} — ${budget.clientData.address}`, size: 20 })] }),
+                    new Paragraph({ text: '' }),
+                    new Table({ rows: [headerRow, ...itemRows], width: { size: 100, type: WidthType.PERCENTAGE } }),
+                    new Paragraph({ text: '' }),
+                    new Paragraph({ children: [new TextRun({ text: `Base Imponible: ${budget.subtotal.toFixed(2)} €`, size: 20 })], alignment: AlignmentType.RIGHT }),
+                    new Paragraph({ children: [new TextRun({ text: `IVA (${(budget.ivaRate * 100).toFixed(0)}%): ${budget.ivaAmount.toFixed(2)} €`, size: 20 })], alignment: AlignmentType.RIGHT }),
+                    new Paragraph({ children: [new TextRun({ text: `TOTAL: ${budget.total.toFixed(2)} €`, bold: true, size: 24, color: '1e40af' })], alignment: AlignmentType.RIGHT }),
+                    ...(exportNotes.trim().length > 0 ? [
+                        new Paragraph({ text: '' }),
+                        new Paragraph({ children: [new TextRun({ text: 'NOTAS Y CONDICIONES:', bold: true, color: '1e40af' })] }),
+                        new Paragraph({ children: [new TextRun({ text: exportNotes.replace(/<[^>]*>/g, ''), size: 18 })] }),
+                    ] : []),
+                ],
+            }],
+        });
+
+        const blob = await Packer.toBlob(doc);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const exportName = budget.projectName ? `${budget.projectName}_${budget.number}` : `Proyecto_${budget.number || 'borrador'}`;
+        a.download = `${exportName}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     const handleExportJSON = () => {
@@ -256,46 +285,18 @@ const BudgetEditor: React.FC = () => {
         return acc;
     }, {} as Record<string, BudgetItem[]>);
 
-    const budgetStats = (() => {
-        let totalCost = 0;
-        let totalSale = 0;
-        budget.items.forEach(item => {
-            totalCost += (item.costPrice || 0) * (item.quantity || 0);
-            totalSale += (item.price || 0) * (item.quantity || 0);
-        });
-        const profit = totalSale - totalCost;
-        const margin = totalCost > 0 ? (profit / totalCost) * 100 : 0;
-        return { totalCost, totalSale, profit, margin };
-    })();
+
 
     return (
         <div className="budget-editor">
-            {/* Real-time Profit Analyzer Bar */}
-            <div className={`budget-profit-tracker ${budgetStats.profit >= 0 ? 'pos' : 'neg'}`}>
-                <div className="tracker-item">
-                    <span className="label">Venta:</span>
-                    <span className="val">{budgetStats.totalSale.toFixed(2)}€</span>
-                </div>
-                <div className="tracker-divider"></div>
-                <div className="tracker-item">
-                    <span className="label">Coste:</span>
-                    <span className="val">{budgetStats.totalCost.toFixed(2)}€</span>
-                </div>
-                <div className="tracker-divider"></div>
-                <div className="tracker-item highlight">
-                    <span className="label">Beneficio:</span>
-                    <span className={`val ${budgetStats.profit >= 0 ? 'text-green' : 'text-red'}`}>{budgetStats.profit.toFixed(2)}€ ({budgetStats.margin.toFixed(1)}%)</span>
-                </div>
-            </div>
-
             <div className="editor-header">
-                <button
-                    className="btn-back"
-                    onClick={() => navigate('/budgets')}
-                    title="Volver al listado"
-                >
-                    <ArrowLeft size={20} />
-                </button>
+                <div className="header-left">
+                    <button className="back-button" onClick={handleBack}>
+                        <ChevronLeft size={20} />
+                    </button>
+                    <h1>{budget.projectName || 'Nuevo Proyecto'}</h1>
+                    {budget.number && <span className="budget-number-badge">{budget.number}</span>}
+                </div>
                 <div className="header-actions">
                     <input
                         type="file"
@@ -306,83 +307,54 @@ const BudgetEditor: React.FC = () => {
                     />
 
                     <div className="action-bar">
-                        <button
-                            className="btn-secondary btn-import"
-                            onClick={() => fileInputRef.current?.click()}
-                            title="Importar JSON"
-                        >
-                            <UploadIcon size={18} className="icon-blue" /> <span className="btn-text">Importar</span>
-                        </button>
-
-                        <button
-                            className="btn-secondary btn-json"
-                            onClick={handleExportJSON}
-                            title="Guardar JSON"
-                        >
-                            <Download size={18} className="icon-purple" /> <span className="btn-text">Archivo</span>
-                        </button>
-
-                        <button
-                            className="btn-secondary btn-excel"
-                            onClick={handleExportExcel}
-                            title="Excel"
-                        >
-                            <FileText size={18} className="icon-green" /> <span className="btn-text">Excel</span>
-                        </button>
-
-                        <button
-                            className={`btn-secondary ${!showPrices ? 'active-toggle' : ''}`}
-                            onClick={() => setShowPrices(!showPrices)}
-                            title={showPrices ? "Ocultar precios individuales en PDF" : "Mostrar precios individuales en PDF"}
-                        >
-                            {showPrices ? <Tags size={18} /> : <EyeOff size={18} />}
-                            <span className="btn-text">Precios</span>
-                        </button>
-
-                        <button
-                            className={`btn-secondary ${!showTotals ? 'active-toggle' : ''}`}
-                            onClick={() => setShowTotals(!showTotals)}
-                            title={showTotals ? "Ocultar totales finales en PDF" : "Mostrar totales finales en PDF"}
-                        >
-                            {showTotals ? <Calculator size={18} /> : <Ban size={18} />}
-                            <span className="btn-text">Totales</span>
-                        </button>
-
-                        <button
-                            className={`btn-secondary btn-pdf ${isExportingPDF ? 'loading' : ''}`}
-                            onClick={async () => {
-                                if (isVisualMode && a4SheetRef.current) {
-                                    setIsExportingPDF(true);
-                                    const filename = `Presupuesto_${budget.number}_${budget.clientData.name.replace(/\s+/g, '_') || 'cliente'}.pdf`;
-                                    try {
-                                        await generatePDFFromElement(a4SheetRef.current, filename);
-                                    } finally {
-                                        setIsExportingPDF(false);
-                                    }
-                                } else {
-                                    generatePDF(budget, companyData, showPrices, showTotals);
-                                }
-                            }}
-                            title="Descargar PDF"
-                            disabled={isExportingPDF}
-                        >
-                            <FileDown size={18} className="icon-red" />
-                            <span className="btn-text">{isExportingPDF ? 'Generando...' : 'PDF'}</span>
-                        </button>
-
-                        <div className="mode-toggle">
-                            <button
-                                className={`mode-btn ${!isVisualMode ? 'active' : ''}`}
-                                onClick={() => setIsVisualMode(false)}
-                            >
-                                Formulario
+                        <div className="dropdown-group">
+                            <button className="btn-secondary" title="Opciones de Archivo">
+                                <FileText size={18} className="icon-blue" /> <span className="btn-text">Archivo ▼</span>
                             </button>
-                            <button
-                                className={`mode-btn ${isVisualMode ? 'active' : ''}`}
-                                onClick={() => setIsVisualMode(true)}
-                            >
-                                Visual (PDF)
+                            <div className="dropdown-menu">
+                                <button onClick={() => fileInputRef.current?.click()}>
+                                    <Share2 size={16} /> Importar JSON
+                                </button>
+                                <button onClick={handleExportJSON}>
+                                    <Download size={16} /> Exportar JSON
+                                </button>
+                                <button onClick={handleExportExcel}>
+                                    <FileText size={16} /> Exportar Excel
+                                </button>
+                                <button onClick={handleExportWord}>
+                                    <FileText size={16} /> Exportar Word
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="dropdown-group">
+                            <button className="btn-secondary btn-pdf" title="Exportar PDF">
+                                <FileDown size={18} className="icon-red" /> <span className="btn-text">PDF ▼</span>
                             </button>
+                            <div className="dropdown-menu">
+                                <button onClick={() => generatePDF(budget, companyData, 'preview', showPrices, showTotals)}>
+                                    <FileDown size={16} /> Ver Vista Previa
+                                </button>
+                                <button onClick={() => generatePDF(budget, companyData, 'download', showPrices, showTotals)}>
+                                    <Download size={16} /> Descargar PDF
+                                </button>
+                                <button onClick={() => generatePDF(budget, companyData, 'print', showPrices, showTotals)}>
+                                    <FileText size={16} /> Imprimir PDF
+                                </button>
+                                {navigator.share && typeof navigator.share === 'function' && (
+                                    <button onClick={() => generatePDF(budget, companyData, 'share', showPrices, showTotals)}>
+                                        <Share2 size={16} /> Compartir PDF
+                                    </button>
+                                )}
+                                <button onClick={() => setShowPrices(!showPrices)}>
+                                    {showPrices ? <Tags size={16} /> : <EyeOff size={16} />}
+                                    {showPrices ? 'Ocultar precios' : 'Mostrar precios'}
+                                </button>
+                                <button onClick={() => setShowTotals(!showTotals)}>
+                                    {showTotals ? <Calculator size={16} /> : <Ban size={16} />}
+                                    {showTotals ? 'Ocultar totales' : 'Mostrar totales'}
+                                </button>
+                            </div>
                         </div>
 
                         <button
@@ -407,218 +379,252 @@ const BudgetEditor: React.FC = () => {
                 </div>
             </div>
 
-            <div className={`budget-main-content ${isVisualMode ? 'visual' : 'form'}`}>
-                {isVisualMode ? (
-                    <div className="a4-sheet-container">
-                        <FloatingToolbar containerRef={a4SheetRef as React.RefObject<HTMLElement>} />
-
-                        {/* WYSIWYG Info bar */}
-                        <div className="wysiwyg-hint">
-                            <span>✏️ Haz clic en cualquier parte para editar — arrastra para seleccionar — la toolbar aparece al seleccionar texto</span>
-                            <button
-                                className="btn-regenerate"
-                                onClick={() => {
-                                    if (window.confirm('¿Regenerar el layout desde los datos del formulario? Perderás los cambios de formato visual.')) {
-                                        const html = buildInitialHtml();
-                                        updateBudgetField('visualHtml', html);
-                                        if (a4SheetRef.current) a4SheetRef.current.innerHTML = html;
-                                    }
-                                }}
-                                title="Reconstruir desde datos del formulario"
-                            >
-                                ↺ Regenerar
-                            </button>
-                        </div>
-
-                        <div
-                            className="a4-sheet"
-                            ref={a4SheetRef}
-                            contentEditable
-                            suppressContentEditableWarning
-                            onInput={e => {
-                                updateBudgetField('visualHtml', (e.currentTarget as HTMLDivElement).innerHTML);
-                            }}
-                            dangerouslySetInnerHTML={{ __html: budget.visualHtml || buildInitialHtml() }}
-                        />
-                    </div>
-                ) : (
-                    <>
-                        <div className="client-section card compact">
-                            <h3 className="section-title-clear">DATOS DEL CLIENTE</h3>
-                            <div className="form-grid-compact">
-                                <div className="form-group span-1 project-field">
-                                    <label>Referencia Proyecto</label>
+            <div className="budget-main-content form">
+                <div className="form-main-column">
+                    <div className="client-section card compact">
+                        <h3 className="section-title-clear">DATOS DEL CLIENTE</h3>
+                        <div className="form-grid-compact">
+                            <div className="form-group span-2">
+                                <label>Nombre del Proyecto</label>
+                                <input
+                                    value={budget.projectName || ''}
+                                    onChange={e => updateBudgetField('projectName', e.target.value)}
+                                    placeholder="Ej: Reforma de Salón"
+                                    className="project-name-input"
+                                />
+                            </div>
+                            <div className="form-group span-2 project-field">
+                                <label>PRESUPUESTO Nº (ID)</label>
+                                <div style={{ display: 'flex', gap: '8px' }}>
                                     <input
                                         value={budget.number}
                                         onChange={e => updateBudgetField('number', e.target.value)}
                                         placeholder="Ej: 2026-001"
                                         className="project-ref-input"
+                                        style={{ flex: 1 }}
                                     />
-                                </div>
-                                <div className="form-group span-1">
-                                    <label>Fecha</label>
-                                    <input
-                                        type="date"
-                                        value={new Date(budget.date).toISOString().split('T')[0]}
-                                        onChange={e => updateBudgetField('date', new Date(e.target.value).getTime())}
-                                    />
-                                </div>
-                                <div className="form-group span-2">
-                                    <label>Nombre / Razón Social</label>
-                                    <input
-                                        value={budget.clientData.name}
-                                        onChange={e => updateClientData('name', e.target.value)}
-                                    />
-                                </div>
-                                <div className="form-group span-2">
-                                    <label>Dirección</label>
-                                    <input
-                                        value={budget.clientData.address}
-                                        onChange={e => updateClientData('address', e.target.value)}
-                                    />
-                                </div>
-                                <div className="form-group span-1">
-                                    <label>C.P.</label>
-                                    <input
-                                        inputMode="numeric"
-                                        value={budget.clientData.postalCode || ''}
-                                        onChange={e => updateClientData('postalCode', e.target.value)}
-                                        placeholder="00000"
-                                    />
-                                </div>
-                                <div className="form-group span-1">
-                                    <label>Localidad</label>
-                                    <input
-                                        value={budget.clientData.city || ''}
-                                        onChange={e => updateClientData('city', e.target.value)}
-                                        placeholder="Ciudad"
-                                    />
-                                </div>
-                                <div className="form-group span-1">
-                                    <label>Teléfono</label>
-                                    <input
-                                        inputMode="tel"
-                                        value={budget.clientData.phone}
-                                        onChange={e => updateClientData('phone', formatPhoneNumber(e.target.value))}
-                                        maxLength={15}
-                                        placeholder="600 000 000"
-                                    />
-                                </div>
-                                <div className="form-group span-1">
-                                    <label>NIF / CIF</label>
-                                    <input
-                                        value={budget.clientData.nif}
-                                        onChange={e => updateClientData('nif', formatTaxID(e.target.value))}
-                                        maxLength={9}
-                                        placeholder="12345678X"
-                                    />
-                                </div>
-                                <div className="form-group span-2">
-                                    <label>Email</label>
-                                    <input
-                                        value={budget.clientData.email}
-                                        onChange={e => updateClientData('email', e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="items-section card">
-                            <div className="section-header">
-                                <h3>Partidas del Proyecto</h3>
-                                <button className="btn-add-partida" onClick={openNewItemModal}>
-                                    <Plus size={18} /> Añadir Partida
-                                </button>
-                            </div>
-
-                            {allGroups.map(group => {
-                                const items = groupedItems[group];
-                                if (!items || items.length === 0) return null;
-
-                                return (
-                                    <div key={group} className="group-container">
-                                        <h4 className="group-title">{group}</h4>
-                                        <div className="items-table-form">
-                                            <div className="table-header-form">
-                                                <div className="col-desc">Descripción</div>
-                                                <div className="col-qty">Cant.</div>
-                                                <div className="col-price">Precio</div>
-                                                <div className="col-total">Importe</div>
-                                                <div className="col-actions"></div>
-                                            </div>
-                                            {items.map((item: BudgetItem) => (
-                                                <div key={item.id} className="table-row-form">
-                                                    <div className="col-desc">
-                                                        <div className="item-cat" dangerouslySetInnerHTML={{ __html: item.category }} />
-                                                        <div className="item-text" dangerouslySetInnerHTML={{ __html: item.description }} />
-                                                    </div>
-                                                    <div className="col-qty">{item.quantity}</div>
-                                                    <div className="col-price">{item.price.toFixed(2)} €</div>
-                                                    <div className="col-total">{(item.quantity * item.price).toFixed(2)} €</div>
-                                                    <div className="col-actions">
-                                                        <button onClick={() => openEditItemModal(item)} className="action-btn edit"><Edit2 size={16} /></button>
-                                                        <button onClick={() => removeItem(item.id)} className="action-btn delete"><Trash2 size={16} /></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="totals-section card">
-                            <div className="total-row">
-                                <span>Base Imponible</span>
-                                <span>{budget.subtotal.toFixed(2)} €</span>
-                            </div>
-                            <div className="total-row">
-                                <div className="iva-selector">
-                                    <span>IVA</span>
-                                    <select
-                                        value={budget.ivaRate}
-                                        onChange={e => updateBudgetField('ivaRate', parseFloat(e.target.value))}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const year = new Date().getFullYear();
+                                            const random = Math.floor(1000 + Math.random() * 9000);
+                                            updateBudgetField('number', `${year}-${random}`);
+                                        }}
+                                        className="secondary-button"
+                                        style={{ padding: '8px', fontSize: '10px' }}
+                                        title="Generar número aleatorio"
                                     >
-                                        {DEFAULT_IVA_RATES.map(rate => (
-                                            <option key={rate.value} value={rate.value}>{rate.label}</option>
+                                        Aleatorio
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="form-group span-1">
+                                <label>Fecha</label>
+                                <input
+                                    type="date"
+                                    value={new Date(budget.date).toISOString().split('T')[0]}
+                                    onChange={e => updateBudgetField('date', new Date(e.target.value).getTime())}
+                                />
+                            </div>
+                            <div className="form-group span-2">
+                                <label>Nombre / Razón Social</label>
+                                <input
+                                    value={budget.clientData.name}
+                                    onChange={e => updateClientData('name', e.target.value)}
+                                />
+                            </div>
+                            <div className="form-group span-2">
+                                <label>Dirección</label>
+                                <input
+                                    value={budget.clientData.address}
+                                    onChange={e => updateClientData('address', e.target.value)}
+                                />
+                            </div>
+                            <div className="form-group span-1">
+                                <label>C.P.</label>
+                                <input
+                                    inputMode="numeric"
+                                    value={budget.clientData.postalCode || ''}
+                                    onChange={e => updateClientData('postalCode', e.target.value)}
+                                    placeholder="00000"
+                                />
+                            </div>
+                            <div className="form-group span-1">
+                                <label>Localidad</label>
+                                <input
+                                    value={budget.clientData.city || ''}
+                                    onChange={e => updateClientData('city', e.target.value)}
+                                    placeholder="Ciudad"
+                                />
+                            </div>
+                            <div className="form-group span-1">
+                                <label>Teléfono</label>
+                                <input
+                                    inputMode="tel"
+                                    value={budget.clientData.phone}
+                                    onChange={e => updateClientData('phone', formatPhoneNumber(e.target.value))}
+                                    maxLength={15}
+                                    placeholder="600 000 000"
+                                />
+                            </div>
+                            <div className="form-group span-1">
+                                <label>NIF / CIF</label>
+                                <input
+                                    value={budget.clientData.nif}
+                                    onChange={e => updateClientData('nif', formatTaxID(e.target.value))}
+                                    maxLength={9}
+                                    placeholder="12345678X"
+                                />
+                            </div>
+                            <div className="form-group span-2">
+                                <label>Email</label>
+                                <input
+                                    value={budget.clientData.email}
+                                    onChange={e => updateClientData('email', e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="items-section card">
+                        <div className="section-header">
+                            <h3>Partidas del Proyecto</h3>
+                            <button className="btn-add-partida" onClick={openNewItemModal}>
+                                <Plus size={18} /> Añadir Partida
+                            </button>
+                        </div>
+
+                        {allGroups.map(group => {
+                            const items = groupedItems[group];
+                            if (!items || items.length === 0) return null;
+
+                            return (
+                                <div key={group} className="group-container">
+                                    <h4 className="group-title">{group}</h4>
+                                    <div className="items-table-form">
+                                        <div className="table-header-form">
+                                            <div className="col-desc">Descripción</div>
+                                            <div className="col-qty">Cant.</div>
+                                            <div className="col-price">Precio</div>
+                                            <div className="col-total">Importe</div>
+                                            <div className="col-actions"></div>
+                                        </div>
+                                        {items.map((item: BudgetItem) => (
+                                            <div key={item.id} className="table-row-form">
+                                                <div className="col-desc">
+                                                    <div className="item-cat" dangerouslySetInnerHTML={{ __html: item.category }} />
+                                                    <div className="item-text" dangerouslySetInnerHTML={{ __html: item.description }} />
+                                                </div>
+                                                <div className="col-qty">{item.quantity}</div>
+                                                <div className="col-price">{item.price.toFixed(2)} €</div>
+                                                <div className="col-total">{(item.quantity * item.price).toFixed(2)} €</div>
+                                                <div className="col-actions">
+                                                    <button
+                                                        onClick={() => openEditItemModal(item)}
+                                                        className="action-btn edit"
+                                                        style={{ color: '#2563eb' }}
+                                                    >
+                                                        <Edit2 size={16} strokeWidth={2} color="#2563eb" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => removeItem(item.id)}
+                                                        className="action-btn delete"
+                                                        style={{ color: '#ef4444' }}
+                                                    >
+                                                        <Trash2 size={16} strokeWidth={2} color="#ef4444" />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         ))}
-                                    </select>
+                                    </div>
                                 </div>
-                                <span>{budget.ivaAmount.toFixed(2)} €</span>
-                            </div>
-                            <div className="total-row grand-total">
-                                <span>TOTAL PROYECTO</span>
-                                <span>{budget.total.toFixed(2)} €</span>
-                            </div>
-                        </div>
+                            );
+                        })}
+                    </div>
+                    <div className="notes-section card">
+                        <h3>Notas y Condiciones</h3>
+                        <RichTextEditor
+                            value={budget.notes || companyData.defaultNotes || ''}
+                            onChange={(val) => updateBudgetField('notes', val)}
+                            placeholder="Escribe aquí las aclaraciones o condiciones del proyecto..."
+                        />
+                    </div>
 
-                        <div className="notes-section card">
-                            <h3>Notas del Proyecto</h3>
-                            <RichTextEditor
-                                value={budget.notes || companyData.defaultNotes || ''}
-                                onChange={(val) => updateBudgetField('notes', val)}
-                                placeholder="Escribe aquí las aclaraciones o condiciones del proyecto..."
-                            />
-                        </div>
-
-                        <div className="signatures-section card">
-                            <h3>Firmas</h3>
-                            <div className="signature-grid">
-                                <div className="sig-block">
-                                    <SignaturePad
-                                        label="Firma Cliente (Pantalla)"
-                                        onSave={(data) => updateBudgetField('clientSignature', data)}
-                                    />
-                                    {budget.clientSignature && <img src={budget.clientSignature} alt="Firma preview" className="sig-preview" />}
-                                </div>
-                                <div className="sig-status">
-                                    <p>Sello de empresa: {companyData.sealUrl ? <span className="text-green">Configurado</span> : <span className="text-red">No configurado</span>}</p>
-                                    {companyData.sealUrl && <img src={companyData.sealUrl} alt="Sello preview" className="seal-preview" />}
-                                </div>
+                    <div className="payment-section card">
+                        <h3>Plazos y Forma de Pago</h3>
+                        <div className="form-group span-4" style={{ marginTop: '10px' }}>
+                            <div className="payment-terms-box" style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.9rem', color: '#1e293b', lineHeight: '1.6' }}>
+                                {(companyData.paymentTerms || '').split('\n').map((line, idx) => {
+                                    if (!line.trim()) return null;
+                                    // Try to find a percentage at the start of the line or anywhere
+                                    const percMatch = line.match(/(\d+(?:[.,]\d+)?)\s*%/);
+                                    let amountCalc = '';
+                                    if (percMatch) {
+                                        const perc = parseFloat(percMatch[1].replace(',', '.'));
+                                        if (!isNaN(perc)) {
+                                            const amount = (budget.total * (perc / 100)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                            amountCalc = `  -->  ${amount} €`;
+                                        }
+                                    }
+                                    return (
+                                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: idx < (companyData.paymentTerms.split('\n').length - 1) ? '1px dashed #cbd5e1' : 'none', paddingBottom: '4px', marginBottom: '4px' }}>
+                                            <span>{line}</span>
+                                            <strong style={{ color: '#2563eb' }}>{amountCalc}</strong>
+                                        </div>
+                                    );
+                                })}
+                                {!companyData.paymentTerms?.trim() && (
+                                    <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No hay condiciones de pago configuradas en Ajustes.</span>
+                                )}
                             </div>
                         </div>
-                    </>
-                )}
+                    </div>
+
+                    <div className="signatures-section card">
+                        <h3>Firmas</h3>
+                        <div className="signature-grid">
+                            <div className="sig-block">
+                                <SignaturePad
+                                    label="Firma Cliente (Pantalla)"
+                                    onSave={(data) => updateBudgetField('clientSignature', data)}
+                                />
+                                {budget.clientSignature && <img src={budget.clientSignature} alt="Firma preview" className="sig-preview" />}
+                            </div>
+                            <div className="sig-status">
+                                <p>Sello de empresa: {companyData.sealUrl ? <span className="text-green">Configurado</span> : <span className="text-red">No configurado</span>}</p>
+                                {companyData.sealUrl && <img src={companyData.sealUrl} alt="Sello preview" className="seal-preview" />}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="form-sidebar-column">
+                    <div className="totals-section card blue-totals">
+                        <div className="total-row">
+                            <span>Base Imponible</span>
+                            <span>{budget.subtotal.toFixed(2)} €</span>
+                        </div>
+                        <div className="total-row">
+                            <div className="iva-selector">
+                                <span>IVA</span>
+                                <select
+                                    value={budget.ivaRate}
+                                    onChange={e => updateBudgetField('ivaRate', parseFloat(e.target.value))}
+                                >
+                                    {DEFAULT_IVA_RATES.map(rate => (
+                                        <option key={rate.value} value={rate.value}>{rate.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <span>{budget.ivaAmount.toFixed(2)} €</span>
+                        </div>
+                        <div className="total-row grand-total">
+                            <span>TOTAL PROYECTO</span>
+                            <span>{budget.total.toFixed(2)} €</span>
+                        </div>
+                    </div>
+                </div>
+
             </div >
 
             <ItemModal
@@ -642,10 +648,19 @@ const BudgetEditor: React.FC = () => {
           padding-bottom: 80px;
         }
 
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        .header-left h1 { 
+          font-size: 1.1rem; 
+          color: #2563eb; 
+          font-weight: 800; 
+          margin: 0;
+        }
+        .header-actions { display: flex; align-items: center; gap: 10px; }
+
         .editor-header {
           margin-bottom: 24px;
           background: white;
-          padding: 12px 20px;
+          padding: 10px 20px;
           border-radius: 12px;
           border: 1px solid #e5e7eb;
           display: flex;
@@ -653,7 +668,7 @@ const BudgetEditor: React.FC = () => {
           justify-content: space-between;
           box-shadow: 0 1px 3px rgba(0,0,0,0.05);
           position: sticky;
-          top: 10px;
+          top: 0;
           z-index: 100;
         }
 
@@ -675,6 +690,66 @@ const BudgetEditor: React.FC = () => {
           display: flex;
           gap: 10px;
           align-items: center;
+        }
+
+        /* Button Interactivity */
+        .btn-secondary, .btn-primary {
+          transition: transform 0.1s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+        .btn-secondary:active, .btn-primary:active {
+          transform: scale(0.95) !important;
+        }
+
+        .icon-blue { color: #64748b; }
+        .icon-red { color: #64748b; }
+        
+        .btn-secondary:hover .icon-blue { color: #2563eb !important; }
+        .btn-secondary:hover .icon-red { color: #ef4444 !important; }
+
+        .dropdown-group {
+          position: relative;
+        }
+        .dropdown-group:hover .dropdown-menu {
+          display: flex;
+          opacity: 1;
+          pointer-events: all;
+          transform: translateY(0);
+        }
+        .dropdown-menu {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          background: white;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+          border-radius: 10px;
+          display: flex;
+          flex-direction: column;
+          padding: 8px;
+          min-width: 160px;
+          opacity: 0;
+          pointer-events: none;
+          transform: translateY(-10px);
+          transition: all 0.2s ease;
+          z-index: 200;
+        }
+        .dropdown-menu button {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 12px;
+          background: transparent;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 600;
+          color: #475569;
+          font-size: 0.85rem;
+          transition: background 0.2s;
+        }
+        .dropdown-menu button:hover {
+          background: #f1f5f9;
+          color: #0f172a;
         }
 
         /* Mode Toggle */
@@ -704,197 +779,25 @@ const BudgetEditor: React.FC = () => {
           box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
-        /* visual layout */
-        .budget-main-content.visual {
-          background: #eef2f7;
-          padding: 28px;
-          border-radius: 16px;
-          min-height: 100vh;
-        }
-
-        .a4-sheet-container {
-          display: flex;
-          justify-content: center;
-          position: relative;
-        }
-
-        .a4-sheet {
-          width: 210mm;
-          min-height: 297mm;
-          background: white;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.06);
-          padding: 14mm 15mm;
-          margin: 0 auto;
-          position: relative;
-          color: #1e293b;
-          font-family: 'Inter', sans-serif;
-          line-height: 1.4;
-          border-radius: 2px;
-        }
-
-        /* ── WYSIWYG Editable Zones ── */
-        .ce-zone {
-          outline: none;
-          border-radius: 4px;
-          transition: background 0.18s, box-shadow 0.18s;
-          cursor: text;
-          position: relative;
-        }
-        .ce-zone:hover {
-          background: rgba(59, 130, 246, 0.04);
-          box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.25);
-        }
-        .ce-zone:focus {
-          background: rgba(59, 130, 246, 0.06);
-          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45);
-        }
-        .ce-zone:empty:before {
-          content: attr(data-placeholder);
-          color: #94a3b8;
-        }
-        .ce-number {
-          text-align: center;
-          font-weight: 600;
-          min-width: 32px;
-          display: inline-block;
-        }
-        .ce-desc { min-height: 1.4em; }
-        .ce-company-name {
-          font-size: 1.2rem;
-          font-weight: 800;
-          color: #0f172a;
-          margin-bottom: 2px;
-        }
-        .ce-company-small {
-          font-size: 0.8rem;
-          color: #64748b;
-          line-height: 1.3;
-        }
-        .ce-client-small {
-          font-size: 0.85rem;
-          color: #475569;
-          line-height: 1.4;
-        }
-
-        /* Logo edit badge */
-        .company-logo-area {
-          width: 100px; height: 100px;
-          border-radius: 8px; overflow: visible;
-          position: relative; cursor: pointer;
-        }
-        .company-logo-area img { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
-        .logo-edit-badge {
-          position: absolute; bottom: -4px; right: -4px;
-          background: #2563eb; color: white;
-          width: 20px; height: 20px; border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          opacity: 0; transition: opacity 0.2s;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-        }
-        .company-logo-area:hover .logo-edit-badge { opacity: 1; }
-
-        /* Sheet Header */
-        .sheet-header {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 20px;
-          align-items: flex-start;
-        }
-
-        .company-logo-area {
-          width: 100px;
-          height: 100px;
-          border-radius: 8px;
-          overflow: hidden;
-          position: relative;
-          cursor: pointer;
-        }
-        .company-logo-area img { width: 100%; height: 100%; object-fit: contain; }
-        
-        .company-info-area { text-align: right; flex: 1; }
-        .company-info-area h1 { font-size: 1.2rem; font-weight: 800; margin-bottom: 2px; color: #0f172a; }
-        .company-info-area p { font-size: 0.8rem; color: #64748b; margin: 0; line-height: 1.3; }
-
-        .horizontal-divider { height: 1px; background: #e2e8f0; margin: 15px 0; }
-
-        /* New Info Row */
-        .sheet-info-row { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        
-        .budget-info-side { flex: 1; }
-        .budget-label-main { font-size: 1rem; font-weight: 800; color: var(--primary-color); margin-bottom: 4px; }
-        .budget-date-main { font-size: 0.85rem; color: #64748b; }
-
-        .client-info-side { 
-          flex: 1; 
-          background: #f8fafc; 
-          padding: 12px 16px; 
-          border-radius: 8px; 
-          border-left: 3px solid var(--primary-color);
-          position: relative;
-        }
-        .client-header { font-size: 0.7rem; font-weight: 800; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; }
-        .client-name-big { font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
-        .client-sub-details p { font-size: 0.85rem; color: #475569; margin: 0; line-height: 1.4; }
-
-        /* Table */
-        .sheet-table { margin-bottom: 20px; }
-        .table-head { 
-          display: flex; background: #1e293b; color: white; 
-          padding: 10px 14px; font-weight: 700; font-size: 0.75rem;
-          border-radius: 4px 4px 0 0;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        .table-head .col-desc { flex: 1; }
-        .table-head .col-qty { width: 60px; text-align: center; }
-        .table-head .col-total { width: 100px; text-align: right; }
-
-        .item-row-visual { border-bottom: 1px solid #f1f5f9; }
-        .category-row-sheet { 
-          background: #f1f5f9; padding: 6px 14px; font-weight: 800; 
-          font-size: 0.8rem; color: var(--primary-color); text-transform: uppercase;
-        }
-        .category-row-sheet .ce-zone { font-weight: 800; font-size: 0.8rem; color: var(--primary-color); text-transform: uppercase; display: inline-block; width: 100%; }
-        .data-row-sheet { display: flex; padding: 8px 14px; align-items: flex-start; }
-        .data-row-sheet .col-desc { flex: 1; font-size: 0.9rem; line-height: 1.5; }
-        .data-row-sheet .col-qty { width: 60px; text-align: center; font-weight: 600; font-size: 0.85rem; }
-        .data-row-sheet .col-total { width: 100px; text-align: right; font-weight: 700; color: #0f172a; font-size: 0.9rem; }
-        
-        .add-item-sheet {
-          padding: 8px; text-align: center; border: 1px dashed #cbd5e1; 
-          margin-top: 10px; border-radius: 6px; color: #94a3b8; font-weight: 600;
-          cursor: pointer; font-size: 0.8rem;
-          display: flex; align-items: center; justify-content: center; gap: 6px;
-        }
-
-        /* Footer */
-        .sheet-footer-area { display: flex; gap: 30px; margin-top: 20px; align-items: flex-start; }
-        .sheet-notes { flex: 1; background: #fffbeb; border: 1px solid #fef3c7; padding: 12px; border-radius: 8px; position: relative; }
-        .sheet-notes .label { font-size: 0.7rem; font-weight: 800; color: #92400e; margin-bottom: 6px; }
-        .notes-val { font-size: 0.8rem; color: #78350f; line-height: 1.4; min-height: 1.4em; }
-        .notes-val { font-size: 0.8rem; color: #78350f; line-height: 1.4; }
-
-        .sheet-totals { width: 220px; }
-        .sheet-totals .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; }
-        .sheet-totals .grand-total { 
-          margin-top: 8px; padding-top: 10px; border-top: 2px solid #e2e8f0;
-          font-size: 1.1rem; font-weight: 900; color: var(--primary-color);
-        }
-
-        .sheet-signatures { margin-top: 40px; display: flex; justify-content: space-between; }
-        .sig-block { width: 180px; text-align: center; position: relative; }
-        .sig-line { height: 1px; background: #cbd5e1; margin-bottom: 6px; }
-        .sig-label { font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
-        .sig-img { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); max-height: 60px; }
-        .seal-img { max-height: 80px; opacity: 0.8; }
-
         /* Form Mode Restored Styles */
         .budget-main-content.form {
-          max-width: 1000px;
+          max-width: 1200px;
           margin: 0 auto;
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 24px;
+          align-items: start;
+        }
+
+        .form-main-column {
           display: flex;
           flex-direction: column;
           gap: 24px;
+        }
+
+        .form-sidebar-column {
+          position: sticky;
+          top: 90px;
         }
 
         .card {
@@ -904,6 +807,45 @@ const BudgetEditor: React.FC = () => {
           padding: 24px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
+
+        /* Blue Totals Box */
+        .blue-totals {
+          background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+          color: white;
+          border: none;
+          box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+          border-radius: 16px;
+          padding: 24px;
+        }
+        .blue-totals .total-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: #e0e7ff;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 12px 0;
+          font-weight: 500;
+          font-size: 1.1rem;
+        }
+        .blue-totals .total-row:last-child { border-bottom: none; }
+        .blue-totals .grand-total {
+          color: white;
+          font-size: 1.1rem;
+          font-weight: 900;
+          margin-top: 4px;
+          padding-top: 10px;
+          white-space: nowrap;
+        }
+        .blue-totals select {
+          background: rgba(255, 255, 255, 0.2);
+          color: white;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+          border-radius: 6px;
+          padding: 4px 8px;
+          outline: none;
+        }
+        .blue-totals select option { color: black; }
+        .iva-selector { display: flex; align-items: center; gap: 8px; }
 
         .section-title-clear {
           font-size: 0.85rem;
@@ -970,9 +912,18 @@ const BudgetEditor: React.FC = () => {
         .action-btn { 
           width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
           border-radius: 8px; border: 1px solid #e2e8f0; background: white; cursor: pointer; transition: all 0.2s;
+          color: #64748b;
         }
-        .action-btn.edit:hover { color: #2563eb; border-color: #2563eb; background: #eff6ff; }
-        .action-btn.delete:hover { color: #ef4444; border-color: #ef4444; background: #fef2f2; }
+        .action-btn svg {
+          width: 16px !important; height: 16px !important;
+          stroke: currentColor !important;
+          fill: none !important;
+          stroke-width: 2 !important;
+        }
+        .action-btn.edit:hover { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+        .action-btn.edit:hover svg { stroke: #2563eb; }
+        .action-btn.delete:hover { border-color: #ef4444; background: #fef2f2; color: #ef4444; }
+        .action-btn.delete:hover svg { stroke: #ef4444; }
 
         /* General UI */
         .editable { position: relative; border: 1px solid transparent; border-radius: 4px; padding: 2px; cursor: pointer; transition: all 0.2s; }

@@ -35,6 +35,7 @@ export interface Client {
 export interface Budget {
     id: string;
     number: string; // e.g. 2026-001
+    projectName?: string; // User-defined name
     clientId: string;
     clientData: Client; // Snapshot of client data at time of budget
     date: number;
@@ -47,6 +48,8 @@ export interface Budget {
     status: 'draft' | 'pending' | 'accepted' | 'rejected';
     clientSignature?: string; // DataURL
     visualHtml?: string; // Free-form HTML layout for the WYSIWYG visual editor
+    paymentMethod?: string;
+    paymentTerms?: string; // Per-budget override of company payment terms
 }
 
 export interface BudgetItem {
