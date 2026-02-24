@@ -22,7 +22,7 @@ export const formatPhoneNumber = (value: string): string => {
 
 export const formatTaxID = (value: string): string => {
     // Uppercase and remove spaces/hyphens
-    let clean = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
     // Standard NIF/CIF length is 9
     return clean.slice(0, 9);

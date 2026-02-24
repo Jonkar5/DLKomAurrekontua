@@ -71,7 +71,7 @@ const renderHeader = (doc: jsPDF, company: CompanyConfig, budget?: Budget) => {
             const targetWidth = 45;
             logoHeight = targetWidth / ratio;
             doc.addImage(company.logoUrl, 'PNG', 15, topYPos, targetWidth, logoHeight);
-        } catch (e) {
+        } catch {
             doc.addImage(company.logoUrl, 'PNG', 15, topYPos, 40, 40);
         }
     }
@@ -146,7 +146,7 @@ const renderHeader = (doc: jsPDF, company: CompanyConfig, budget?: Budget) => {
     return Math.max(topYPos + logoHeight, infoY) + 5;
 };
 
-export const generatePDF = async (budget: Budget, company: CompanyConfig, action: 'preview' | 'download' | 'print' | 'share' = 'preview', showPrices: boolean = true, showTotals: boolean = true) => {
+export const generatePDF = async (budget: Budget, company: CompanyConfig, action: 'preview' | 'download' | 'print' | 'share' | 'blob' = 'preview', showPrices: boolean = true, showTotals: boolean = true, customFileName?: string) => {
     const doc = new jsPDF();
     const lineSpacing = company.pdfLineSpacing || 1.15;
     doc.setLineHeightFactor(lineSpacing);
@@ -186,7 +186,7 @@ export const generatePDF = async (budget: Budget, company: CompanyConfig, action
         yPos += ribbonH + 6;
     }
 
-    const allTableBody: any[] = [];
+    const allTableBody: import('jspdf-autotable').RowInput[] = [];
 
     budget.items.forEach((item) => {
         allTableBody.push([
@@ -241,7 +241,7 @@ export const generatePDF = async (budget: Budget, company: CompanyConfig, action
             fontSize: company.pdfFontSize || 9,
             textColor: [80, 80, 80],
             overflow: 'linebreak',
-            cellPadding: { top: 2, bottom: 2, left: 1, right: 1 } as any
+            cellPadding: { top: 2, bottom: 2, left: 1, right: 1 } as import('jspdf-autotable').MarginPaddingInput
         },
         columnStyles: {
             0: { cellWidth: 'auto' },
@@ -255,12 +255,13 @@ export const generatePDF = async (budget: Budget, company: CompanyConfig, action
         },
         didParseCell: (data) => {
             if (data.row.index % 2 === 0) {
-                (data.cell.styles as any).pageBreak = 'avoid';
+                (data.cell.styles as { pageBreak?: string }).pageBreak = 'avoid';
             }
         }
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 15;
+    yPos = (doc as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? yPos;
+    yPos += 15;
 
     // --- TOTALS SECTION ---
     if (showTotals) {
@@ -352,7 +353,7 @@ export const generatePDF = async (budget: Budget, company: CompanyConfig, action
             const targetWidth = 40;
             const targetHeight = targetWidth / ratio;
             doc.addImage(company.sealUrl, 'PNG', companyX, yPos + 15, targetWidth, targetHeight, undefined, 'SLOW');
-        } catch (e) {
+        } catch {
             doc.addImage(company.sealUrl, 'PNG', companyX, yPos + 15, 40, 24);
         }
     }
@@ -379,9 +380,15 @@ export const generatePDF = async (budget: Budget, company: CompanyConfig, action
         renderRichText(doc, notesToPrint, 15, notesY, pageWidth - 30);
     }
 
-    const filename = `Presupuesto_${budget.number || 'borrador'}.pdf`;
+    const defaultName = budget.projectName ? `${budget.projectName}_${budget.number}` : `Presupuesto_${budget.number || 'borrador'}`;
+    const baseFileName = (customFileName && customFileName.trim() !== '') ? customFileName.trim() : defaultName;
+    const filename = baseFileName.toLowerCase().endsWith('.pdf') ? baseFileName : `${baseFileName}.pdf`;
 
-    if (action === 'preview') {
+    if (action === 'blob') {
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        return { blob, url, filename };
+    } else if (action === 'preview') {
         const blob = doc.output('blob');
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
@@ -391,21 +398,27 @@ export const generatePDF = async (budget: Budget, company: CompanyConfig, action
         doc.autoPrint();
         const blob = doc.output('blob');
         const url = URL.createObjectURL(blob);
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = 'none';
-        iframe.src = url;
-        document.body.appendChild(iframe);
-        iframe.onload = () => {
-            setTimeout(() => {
-                iframe.contentWindow?.print();
-                setTimeout(() => document.body.removeChild(iframe), 2000);
-            }, 500);
-        };
+
+        // Android/iOS ignore hidden iframe printing, fallback to opening it so the user can use native functions
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            window.open(url, '_blank');
+        } else {
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = 'none';
+            iframe.src = url;
+            document.body.appendChild(iframe);
+            iframe.onload = () => {
+                setTimeout(() => {
+                    iframe.contentWindow?.print();
+                    setTimeout(() => document.body.removeChild(iframe), 2000);
+                }, 500);
+            };
+        }
     } else if (action === 'share') {
         const blob = doc.output('blob');
         const file = new File([blob], filename, { type: 'application/pdf' });
@@ -447,7 +460,7 @@ const renderRichText = (doc: jsPDF, html: string, startX: number, startY: number
     let currentY = startY;
     const fontSize = doc.getFontSize();
     const tightLineHeight = (fontSize * 0.353) + 1.5;
-    let processHtml = html
+    const processHtml = html
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<\/p>/gi, '\n')
         .replace(/<p[^>]*>/gi, '')

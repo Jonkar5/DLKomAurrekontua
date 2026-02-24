@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
 import { useMasterData } from '../hooks/useMasterData';
 import { formatPhoneNumber, formatTaxID } from '../utils/formatters';
 import { useToast } from '../context/ToastContext';
+import PdfPreviewModal from '../components/PdfPreviewModal';
 
 const BudgetEditor: React.FC = () => {
     const { id } = useParams();
@@ -24,6 +25,7 @@ const BudgetEditor: React.FC = () => {
     const { masterData } = useMasterData();
     const { showToast } = useToast();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<BudgetItem | undefined>(undefined);
     const [showPrices, setShowPrices] = useState(true);
     const [showTotals, setShowTotals] = useState(true);
@@ -332,7 +334,7 @@ const BudgetEditor: React.FC = () => {
                                 <FileDown size={18} className="icon-red" /> <span className="btn-text">PDF ▼</span>
                             </button>
                             <div className="dropdown-menu">
-                                <button onClick={() => generatePDF(budget, companyData, 'preview', showPrices, showTotals)}>
+                                <button onClick={() => setIsPdfModalOpen(true)}>
                                     <FileDown size={16} /> Ver Vista Previa
                                 </button>
                                 <button onClick={() => generatePDF(budget, companyData, 'download', showPrices, showTotals)}>
@@ -639,6 +641,15 @@ const BudgetEditor: React.FC = () => {
                     }
                     setIsModalOpen(false);
                 }}
+            />
+
+            <PdfPreviewModal
+                isOpen={isPdfModalOpen}
+                onClose={() => setIsPdfModalOpen(false)}
+                budget={budget}
+                companyData={companyData}
+                showPrices={showPrices}
+                showTotals={showTotals}
             />
 
             <style>{`
